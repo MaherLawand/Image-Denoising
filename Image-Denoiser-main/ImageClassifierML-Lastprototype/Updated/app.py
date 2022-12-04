@@ -14,7 +14,7 @@ import matplotlib.image as mpimg
 import cv2
 import urllib.request
 import openai
-openai.api_key ="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"
+openai.api_key ="put Dalle api here" #add your Open ai "Dall-e"api
 openai.Model.list()
 import base64
 from io import BytesIO
@@ -23,20 +23,18 @@ import datetime
 def gaussian(image):
     img=cv2.imread(image)
     im2 = cv2.GaussianBlur(img,(3,3),0) 
-    im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)     
     cv2.imwrite('output.jpg', im2)
     return im2
     
 def NonLocalMeanFilter(image):
     img=cv2.imread(image)
     dst=cv2.fastNlMeansDenoisingColored(img,None,10,10,7,21)
-    dst = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY) 
     cv2.imwrite('output.jpg', dst)
     return dst 
+    
 def median(image):
     img=cv2.imread(image)
     im2 =cv2.medianBlur(img, 3) 
-    im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)     
     cv2.imwrite('output.jpg', im2)
     return im2
       
@@ -45,7 +43,7 @@ def median(image):
 
 
 # Imports and file directory
-f=r'C:\Users\sawwa\OneDrive\Desktop\New folder (8)\New folder\Image-Denoiser-main\ImageClassifierML-Lastprototype\Updated\test'
+f=r'E:\DenoisingImageProcessingProject\Image-Denoiser\Image-Denoiser-main\ImageClassifierML-Lastprototype\Updated\test' #change directory to test folder on your computer 
 y=os.listdir(f)
 imgs=[]
 for file in y:
@@ -70,16 +68,29 @@ bucket = storage.bucket()
 
 app = Flask(__name__)
 CORS(app)
-
-@app.route('/edgeDetection', methods=['GET', 'POST'])
-def edgeDetection():
-  
+@app.route('/upload', methods=['GET', 'POST'])
+def upload():
+ 
   Im = request.json.get('image')
   req = urllib.request.urlopen(Im)
   arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
   imageFromUrl = cv2.imdecode(arr, -1)
-  img_gray = cv2.cvtColor(imageFromUrl, cv2.COLOR_BGR2GRAY)
-  img_blur = cv2.GaussianBlur(img_gray, (3,3), 0) 
+  cv2.imwrite('input.jpg', imageFromUrl)
+  image=Image.open("./input.jpg")
+  img= image.convert('L')
+  imgarr=np.asarray(img)
+  plt.hist(imgarr.ravel(), bins=256, range=(0.0, 255.0), fc='k', ec='k')
+  plt.show()
+  return "Successfull"
+
+@app.route('/edgeDetection', methods=['GET', 'POST'])
+def edgeDetection():
+  Im = request.json.get('image')
+  req = urllib.request.urlopen(Im)
+  arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
+  imageFromUrl = cv2.imdecode(arr, -1)
+
+  img_blur = cv2.GaussianBlur(imageFromUrl, (3,3), 0) 
   edges = cv2.Canny(image=img_blur, threshold1=100, threshold2=200) # Canny Edge Detection
   # Display Sending back the image using firebase storage
   cv2.imwrite('edgeDetection.jpg',edges)
@@ -103,28 +114,24 @@ def dalle():
   return imageUrl
 @app.route('/noise', methods=['GET', 'POST'])
 def noiseDetect():
-    Im = request.json.get('image')
-    req = urllib.request.urlopen(Im)
-    arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
-    imageFromUrl = cv2.imdecode(arr, -1)
-    img_gray = cv2.cvtColor(imageFromUrl, cv2.COLOR_BGR2GRAY)
-    cv2.imwrite('input.jpg', img_gray)
+    imgs=[]
     image=Image.open("./input.jpg")
-    image=image.convert('L')
     img= image.crop((0,0,481,321)).convert('L')
-    imgarr=np.asarray(image)
-    plt.hist(imgarr.ravel(), bins=256, range=(0.0, 255.0), fc='k', ec='k')
-    plt.show()
+    imgarr=np.asarray(img)
+    imgs.append(imgarr)
+    imgs=np.asarray(imgs)
+    imgs=np.expand_dims(imgs,axis=-1)
+
     Modelcase = request.json.get('modelCase')
     Modelcase=int(Modelcase)
     print(Modelcase)
     if(Modelcase==1):
         model=load_model('ClassifierModelA')
-        x=os.listdir(r'C:\Users\sawwa\OneDrive\Desktop\New folder (8)\New folder\Image-Denoiser-main\ModelANoises')
+        x=os.listdir(r'E:\DenoisingImageProcessingProject\Image-Denoiser\Image-Denoiser-main\ModelANoises')#Change directory to ModelANoises on your Computer
         output=model.predict(imgs)
     else:
         model=load_model('ClassifierModelB')
-        x=os.listdir(r'C:\Users\sawwa\OneDrive\Desktop\New folder (8)\New folder\Image-Denoiser-main\ModelBNoises')
+        x=os.listdir(r'E:\DenoisingImageProcessingProject\Image-Denoiser\Image-Denoiser-main\ModelBNoises')#Change directory to ModelBNoises on your Computer
         output=model.predict(imgs)
     urlToFront=""
     noiseType="No Noise detected"
@@ -146,12 +153,11 @@ def noiseDetect():
             plt.show()
       elif(x[np.argmax(i)]=="rayleigh" or x[np.argmax(i)]=="poisson"):
             print("Noise Detected is rayleigh , Here is the image with the applied bilateral Filter:" )
-            noiseType="Poisson"   
+            noiseType="Rayleigh"   
             filterApplied="Therefore Bilateral filter was applied"    
             data=np.array(img)
             img = cv2.bilateralFilter(data,4,50,50)
-            cv2.imshow("Bilateral Filter Applied",img)
-            cv2.waitKey(0)
+            cv2.imwrite('output.jpg', img)
             imgarr=np.asarray(img)
             plt.hist(imgarr.ravel(), bins=256, range=(0.0, 255.0), fc='k', ec='k')
             plt.show()
